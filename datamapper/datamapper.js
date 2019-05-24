@@ -13,7 +13,7 @@ exports.html = `
 <style>
 #datamapper_keyvalue .ui-keyvalue-item { transition: background-color .5s; }
 #datamapper_keyvalue .ui-keyvalue-item-key { width: calc(50% - 13px); float: left; font-weight: normal; }
-#datamapper_keyvalue .ui-keyvalue-item-value { margin: 0; width: calc(50% - 12px); float: left; }
+#datamapper_keyvalue .ui-keyvalue-item-value { margin: 0; width: calc(50% - 20px); float: left; }
 #datamapper_keyvalue .bg-red { background-color: #ff8686; }
 </style>
 <div class="padding">
