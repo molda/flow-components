@@ -1,0 +1,213 @@
+<script type="text/html" settings>
+	<div class="padding">
+		<div class="m" data-jc="dropdown__id__datasource:common.instances;empty:;if:n => n.component === 'nosqlstorage';required:true">@(Flow instance)</div>
+		<div data-jc="multioptions" data-jc-path="?">
+			<script type="text/plain">
+				option('background', 'Widget Background Color', '#8CC152', 'Color');
+				option('linecolor', 'Line Color', '#FFFFFF', 'Color');
+				option('fillcolor', 'Fill Color', '#FFFFFF', 'Color');
+
+				option('format', 'Format', '{0}');
+			</script>
+		</div>
+	</div>
+</script>
+
+<style type="text/css">
+/*.dashboardchartjs { background-color: white }*/
+.dashboardchartjs .chart { padding: 15px 10px 10px 15px }
+.dashboardchartjs canvas { height:100%; width:100%; }
+/*.themedark .dashboardchartjs { background-color: #303030 }*/
+.dashboardchartjs header button { padding-left:5px; padding-right: 5px; }
+</style>
+
+<script type="text/html" body>
+	<header>
+		<button name="settings"><i class="fa fa-cog"></i></button>
+		<button name="year">@(Year)</button>
+		<button name="month">@(Month)</button>
+		<button name="today">@(Today)</button>
+		<label></label>
+	</header>
+	<div class="chart"><canvas></canvas></div>
+</script>
+
+<script>
+exports.name = 'chartjs';
+exports.title = 'Chart.js';
+exports.icon = 'fa-line-chart';
+exports.author = 'Martin Smola';
+exports.group = 'Charts';
+exports.options = { id: null, background: '#434A54' };
+exports.version = '1.0.0';
+
+exports.install = function(instance) {
+
+	var $canvas, chart;
+	var timespan = CACHE(instance.id) || 'today';
+
+	instance.on('data', function(response, fromresize) {
+		var options = instance.options;
+		if (RELEASE && (!options.id || response.id !== options.id))
+			return;
+
+		if (response.type === 'newvalue' && timespan === 'today')
+			return options.id && instance.send(options.id, createQuery());
+		if (response.type === 'dashboardquery' && response.body.items)
+			render(response.body);
+	});
+
+	instance.reconfigure = function() {
+		var options = instance.options;
+		var color = options.background;
+		instance.css('background-color', color);
+		
+		if (!chart) {
+			var config = {};
+			config.type = 'line';
+			config.lineTension = 0.1;
+			config.options = {
+				scales: {
+					yAxes: [{
+						ticks: {
+							callback: function(value, index, values) {
+								return (options.format || '{0}').format(value);
+							},
+							fontColor: '#ffffff'
+						},
+						gridLines: {
+							color: hexToRgb('ffffff', 0.1);
+						}
+					}],
+					xAxes: [{
+						ticks: {
+							fontColor: '#ffffff'
+						},
+						gridLines: {
+							color: hexToRgb('ffffff', 0.1);
+						}
+					}]
+				}
+			};
+			chart = new Chart($canvas, config);
+		} else {
+			chart.render();
+		}
+
+		// Refresh data
+		options.id && instance.send(options.id, createQuery());
+	};
+
+	function hexToRgb(hex, alpha) {
+		var bigint = parseInt(hex, 16);
+		var r = (bigint >> 16) & 255;
+		var g = (bigint >> 8) & 255;
+		var b = bigint & 255;
+
+		return 'rgba({0},{1},{2},{3})'.format(r, g, b, alpha || '0.3');
+	}
+
+	instance.on('resize', function() {
+		chart.resize();
+	});
+
+	instance.make = function() {
+		var options = instance.options;
+		instance.element.aclass('dashboardchartjs');
+		$canvas = instance.element.find('canvas');
+		$canvas.css({ width: instance.size.width, height: instance.size.height - 34 });
+		instance.reconfigure();
+
+		instance.find('header button[name="{0}"]'.format(timespan)).aclass('selected');
+
+		instance.event('click', 'button', function() {
+			var btn = $(this);
+			var name = btn.attr('name');
+			switch (name) {
+				case 'settings':
+					instance.settings();
+					break;
+				case 'today':
+				case 'month':
+				case 'year':
+					timespan = name;
+					options.id && instance.send(options.id, createQuery());
+					instance.find('header button.selected').rclass('selected');
+					btn.aclass('selected');
+					CACHE(instance.id, timespan, '1 month');
+					break
+			}
+		});
+	};
+
+	instance.on('options', instance.reconfigure);
+
+	function render(data) {
+
+		var options = instance.options;
+
+		var chdata = chart.data;
+
+		chdata.labels = [];
+		chdata.datasets = [{}];
+
+		var ds = chdata.datasets[0];
+
+		ds.backgroundColor = hexToRgb(options.fillcolor.slice(1));
+		ds.borderColor = hexToRgb(options.linecolor.slice(1)); // line
+		ds.pointBackgroundColor = hexToRgb(options.linecolor.slice(1)); // point
+		ds.pointBorderColor = hexToRgb(options.linecolor.slice(1)); // point border
+
+		ds.label = options.label || data.label;
+		ds.data = [];
+		ds.labels = [];
+
+		var len = data.items.length;
+		if (timespan === 'today') {
+			var every =  Math.floor(len / (new Date().getHours() * 5)) || 1; // only get every nth item, max 5 per hour
+			if (every > len)
+				every = 1;
+
+			var arr = [];
+			var items = data.items;
+
+			items.forEach(function(i, index){
+				if (index % every === 0)
+					arr.push(i);
+			});
+
+			data.items = arr;
+		}
+
+		data.items.forEach(function(d){
+			
+			if (timespan === 'month')
+				chdata.labels.push(d.label);
+			else
+				chdata.labels.push(new Date(d.dt).format(options.dtformat || 'HH:mm'));
+
+			ds.data.push(d.v);
+		});
+		
+		chart.render();
+		chart.update();
+	};
+
+	function createQuery() {
+		var q = { type: 'dashboardquery' };
+		if (timespan === 'month') {
+			var dt = new Date();
+			q.month = dt.getFullYear() + '-' + (dt.getMonth() + 1);
+		}
+		else if (timespan === 'year')						
+			q.year = new Date().getFullYear();
+		else
+			q.today = true;
+
+		return q;
+	};
+};
+
+// Dependencies
+IMPORT('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.3/Chart.bundle.min.js');
+</script>

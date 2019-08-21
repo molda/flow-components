@@ -1,0 +1,67 @@
+<script type="text/html" settings>
+	<div class="padding">
+        <div class="m" data-jc="dropdown__id__datasource:common.instances;empty:;if:n => n.component === 'dashboardanalytics';required:true">@(Flow instance)</div>
+		<div data-jc="multioptions" data-jc-path="?">
+			<script type="text/plain">
+				option('background', 'Background Color', '#8CC152', 'Color');
+
+			</script>
+		</div>
+	</div>
+</script>
+
+<style type="text/css">
+	.dashboardvegachart {  }
+</style>
+
+<script type="text/html" body>
+	<div style="height:100%">
+		<div class="chart"></div>
+	</div>
+</script>
+
+<script>
+exports.name = 'vega';
+exports.title = 'Vega Chart';
+exports.icon = 'fa-line-chart';
+exports.author = 'Martin Smola';
+exports.group = 'Charts';
+exports.options = { id: null, background: '#434A54' };
+exports.version = '1.0.0';
+
+exports.install = function(instance) {
+
+	instance.on('data', function(response, fromresize) {
+
+		var options = instance.options;
+		if (RELEASE && (!options.id || response.id !== options.id))
+			return;
+
+		// render here
+	});
+
+	instance.reconfigure = function() {
+		var options = instance.options;
+		var color = options.background;
+		instance.css('background-color', color);
+		
+
+		// Refresh data
+		// options.id && instance.send(options.id, 'get');
+	};
+
+	instance.on('resize', function() {
+		
+	});
+
+	instance.make = function() {
+		instance.element.aclass('dashboardvegachart');
+		instance.reconfigure();
+	};
+
+	instance.on('options', instance.reconfigure);
+};
+
+// Dependencies
+IMPORT('https://vega.github.io/vega/vega.min.js');
+</script>
